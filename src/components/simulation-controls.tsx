@@ -1,40 +1,63 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import type { SimulationConfig, InterventionConfig, NetworkType, InterventionStrategy } from '@/simulation/types';
-import { Play, RotateCcw, FlaskConical } from 'lucide-react';
+import {
+  SIMULATION_PRESETS,
+  NETWORK_LABELS,
+  INTERVENTION_LABELS,
+} from '@/lib/presets';
+import { Button } from './ui/button';
+import {
+  Play, RotateCcw, Network, LayoutGrid,
+  GitBranch, Globe, Users, Scissors,
+} from 'lucide-react';
 
 interface ControlsPanelProps {
   config: SimulationConfig;
   intervention: InterventionConfig;
+  activePresetId: string | null;
   isRunning: boolean;
-  isAnimating?: boolean;
   hasResult: boolean;
   onConfigChange: (partial: Partial<SimulationConfig>) => void;
   onInterventionChange: (partial: Partial<InterventionConfig>) => void;
+  onPresetSelect: (presetId: string) => void;
+  onResetConfig: () => void;
   onRun: () => void;
   onReset: () => void;
   className?: string;
 }
 
-const NETWORK_LABELS: Record<NetworkType, string> = {
-  'erdos-renyi': 'Random (ER)',
-  'barabasi-albert': 'Scale-Free (BA)',
-  'watts-strogatz': 'Small-World (WS)',
-  'community': 'Community (SBM)',
+const TOPOLOGY_ICONS: Record<NetworkType, React.ReactNode> = {
+  'erdos-renyi': <Globe className="w-4 h-4" />,
+  'barabasi-albert': <GitBranch className="w-4 h-4" />,
+  'watts-strogatz': <Network className="w-4 h-4" />,
+  'community': <Users className="w-4 h-4" />,
 };
 
-const INTERVENTION_LABELS: Record<InterventionStrategy, string> = {
-  'none': 'None',
-  'random': 'Random Vaccination',
-  'degree-targeted': 'Degree-Targeted',
-  'betweenness-targeted': 'Betweenness-Targeted',
-  'edge-cutting': 'Edge Cutting',
+const STRATEGY_ICONS: Record<InterventionStrategy, React.ReactNode> = {
+  'none': <span className="w-4 h-4 flex items-center justify-center text-xs">—</span>,
+  'random': <LayoutGrid className="w-4 h-4" />,
+  'degree-targeted': <GitBranch className="w-4 h-4" />,
+  'betweenness-targeted': <Network className="w-4 h-4" />,
+  'edge-cutting': <Scissors className="w-4 h-4" />,
 };
 
-function Knob({ label, value, min, max, step, onChange, unit }: {
+function SectionHeader({ number, title, action }: { number: number; title: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[#00ff88]/15 text-[#00ff88] text-[10px] font-bold">
+          {number}
+        </span>
+        <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">{title}</span>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function Knob({ label, value, min, max, step, onChange, unit, format }: {
   label: string;
   value: number;
   min: number;
@@ -42,15 +65,28 @@ function Knob({ label, value, min, max, step, onChange, unit }: {
   step: number;
   onChange: (v: number) => void;
   unit?: string;
+  format?: (v: number) => string;
 }) {
+  const display = format
+    ? format(value)
+    : step >= 1 ? value.toFixed(0) : value < 0.01 ? value.toFixed(3) : value.toFixed(2);
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <label className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{label}</label>
-        <span className="text-xs font-mono tabular-nums text-slate-300">
-          {step >= 1 ? value.toFixed(0) : value.toFixed(2)}
-          {unit && <span className="text-slate-500 ml-0.5">{unit}</span>}
-        </span>
+        <label className="text-[11px] font-medium text-slate-400">{label}</label>
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            value={value}
+            min={min}
+            max={max}
+            step={step}
+            onChange={e => onChange(parseFloat(e.target.value) || min)}
+            className="w-14 bg-[#1a1a24] border border-[#2a2a3a] rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-300 text-right"
+          />
+          {unit && <span className="text-[10px] text-slate-500">{unit}</span>}
+        </div>
       </div>
       <input
         type="range"
@@ -59,18 +95,18 @@ function Knob({ label, value, min, max, step, onChange, unit }: {
         step={step}
         value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
-        className="w-full h-1.5 rounded-full appearance-none cursor-pointer
-          bg-slate-700 accent-emerald-500
+        className="w-full h-1 rounded-full appearance-none cursor-pointer bg-[#2a2a3a]
           [&::-webkit-slider-thumb]:appearance-none
-          [&::-webkit-slider-thumb]:w-3.5
-          [&::-webkit-slider-thumb]:h-3.5
+          [&::-webkit-slider-thumb]:w-3
+          [&::-webkit-slider-thumb]:h-3
           [&::-webkit-slider-thumb]:rounded-full
-          [&::-webkit-slider-thumb]:bg-emerald-400
-          [&::-webkit-slider-thumb]:shadow-lg
-          [&::-webkit-slider-thumb]:shadow-emerald-500/30
-          [&::-webkit-slider-thumb]:transition-transform
-          [&::-webkit-slider-thumb]:hover:scale-125"
+          [&::-webkit-slider-thumb]:bg-[#00ff88]
+          [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(0,255,136,0.5)]"
       />
+      <div className="flex justify-between text-[9px] text-slate-600 font-mono">
+        <span>{format ? format(min) : min}</span>
+        <span>{format ? format(max) : max}</span>
+      </div>
     </div>
   );
 }
@@ -78,145 +114,161 @@ function Knob({ label, value, min, max, step, onChange, unit }: {
 export function ControlsPanel({
   config,
   intervention,
+  activePresetId,
   isRunning,
   hasResult,
   onConfigChange,
   onInterventionChange,
+  onPresetSelect,
+  onResetConfig,
   onRun,
   onReset,
   className,
 }: ControlsPanelProps) {
+  const initialInfectedPct = (config.initialInfected / config.nodeCount) * 100;
+
   return (
-    <Card className={cn('', className)}>
-      <CardHeader>
-        <CardTitle>Simulation Controls</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Network Type */}
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Network Type</label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {(Object.entries(NETWORK_LABELS) as [NetworkType, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => onConfigChange({ networkType: key })}
-                className={cn(
-                  'px-2.5 py-2 rounded-lg text-xs font-medium transition-all duration-150 border',
-                  config.networkType === key
-                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
-                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300'
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+    <aside className={cn('flex flex-col gap-4', className)}>
+      {/* 1. Presets */}
+      <div className="glass-panel rounded-xl p-4">
+        <SectionHeader number={1} title="Presets" />
+        <div className="grid grid-cols-1 gap-1.5">
+          {SIMULATION_PRESETS.map(preset => (
+            <button
+              key={preset.id}
+              onClick={() => onPresetSelect(preset.id)}
+              className={cn(
+                'px-3 py-2.5 rounded-lg text-left text-xs font-medium transition-all border',
+                activePresetId === preset.id
+                  ? 'bg-[#00ff88]/10 border-[#00ff88]/50 text-[#00ff88] neon-glow'
+                  : 'bg-[#1a1a24] border-[#2a2a3a] text-slate-400 hover:border-[#00ff88]/30 hover:text-slate-300'
+              )}
+            >
+              {preset.name}
+            </button>
+          ))}
         </div>
+      </div>
 
-        {/* Sliders */}
-        <Knob
-          label="Nodes"
-          value={config.nodeCount}
-          min={50}
-          max={1000}
-          step={50}
-          onChange={v => onConfigChange({ nodeCount: v })}
-        />
-        <Knob
-          label="Avg Degree"
-          value={config.avgDegree}
-          min={2}
-          max={12}
-          step={1}
-          onChange={v => onConfigChange({ avgDegree: v })}
-        />
-        <Knob
-          label="Infection Rate (β)"
-          value={config.beta}
-          min={0.01}
-          max={0.2}
-          step={0.005}
-          onChange={v => onConfigChange({ beta: v })}
-        />
-        <Knob
-          label="Recovery Rate (γ)"
-          value={config.gamma}
-          min={0.01}
-          max={0.15}
-          step={0.005}
-          onChange={v => onConfigChange({ gamma: v })}
-        />
-        <Knob
-          label="Initial Infected"
-          value={config.initialInfected}
-          min={1}
-          max={20}
-          step={1}
-          onChange={v => onConfigChange({ initialInfected: v })}
-        />
+      {/* 2. Network Topology */}
+      <div className="glass-panel rounded-xl p-4">
+        <SectionHeader number={2} title="Network Topology" />
+        <div className="grid grid-cols-2 gap-1.5">
+          {(Object.entries(NETWORK_LABELS) as [NetworkType, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => onConfigChange({ networkType: key })}
+              className={cn(
+                'flex flex-col items-center gap-1.5 px-2 py-3 rounded-lg text-xs font-medium transition-all border',
+                config.networkType === key
+                  ? 'bg-[#00ff88]/10 border-[#00ff88]/50 text-[#00ff88]'
+                  : 'bg-[#1a1a24] border-[#2a2a3a] text-slate-400 hover:border-[#00ff88]/30'
+              )}
+            >
+              {TOPOLOGY_ICONS[key]}
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        {/* Divider */}
-        <div className="border-t border-slate-700/50 pt-4">
-          <label className="text-[11px] font-medium uppercase tracking-wider text-slate-400 mb-2 block">
-            Intervention Strategy
-          </label>
-          <div className="space-y-1.5">
-            {(Object.entries(INTERVENTION_LABELS) as [InterventionStrategy, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => onInterventionChange({ strategy: key })}
-                className={cn(
-                  'w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 border text-left',
-                  intervention.strategy === key
-                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
-                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300'
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+      {/* 3. Parameters */}
+      <div className="glass-panel rounded-xl p-4">
+        <SectionHeader
+          number={3}
+          title="Parameters"
+          action={
+            <button onClick={onResetConfig} className="text-[10px] text-slate-500 hover:text-[#00ff88] transition-colors">
+              Reset
+            </button>
+          }
+        />
+        <div className="space-y-3">
+          <Knob label="Node Count" value={config.nodeCount} min={50} max={300} step={10}
+            onChange={v => onConfigChange({ nodeCount: v })} />
+          <Knob label="Avg Degree" value={config.avgDegree} min={1} max={4} step={1}
+            onChange={v => onConfigChange({ avgDegree: v })} />
+          <Knob label="Beta (Transmission)" value={config.beta} min={0.001} max={0.04} step={0.001}
+            onChange={v => onConfigChange({ beta: v })} />
+          <Knob
+            label="Initial Infected (%)"
+            value={initialInfectedPct}
+            min={0.1}
+            max={5.5}
+            step={0.1}
+            unit="%"
+            format={v => v.toFixed(1)}
+            onChange={v => onConfigChange({ initialInfected: Math.max(1, Math.round((v / 100) * config.nodeCount)) })}
+          />
+          <Knob label="Max Steps" value={config.maxSteps} min={10} max={80} step={5}
+            onChange={v => onConfigChange({ maxSteps: v })} />
+        </div>
+      </div>
+
+      {/* 4. Intervention Strategy */}
+      <div className="glass-panel rounded-xl p-4">
+        <SectionHeader number={4} title="Intervention Strategy" />
+        <div className="space-y-1.5">
+          {(Object.entries(INTERVENTION_LABELS) as [InterventionStrategy, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => onInterventionChange({ strategy: key })}
+              className={cn(
+                'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium transition-all border text-left',
+                intervention.strategy === key
+                  ? 'bg-[#00ff88]/10 border-[#00ff88]/50 text-[#00ff88] neon-glow'
+                  : 'bg-[#1a1a24] border-[#2a2a3a] text-slate-400 hover:border-[#00ff88]/30'
+              )}
+            >
+              {STRATEGY_ICONS[key]}
+              {label}
+            </button>
+          ))}
         </div>
 
         {intervention.strategy !== 'none' && (
-          <Knob
-            label="Intervention Budget"
-            value={intervention.budget}
-            min={0.02}
-            max={0.3}
-            step={0.02}
-            onChange={v => onInterventionChange({ budget: v })}
-            unit="%"
-          />
+          <div className="mt-3 pt-3 border-t border-[#2a2a3a]">
+            <Knob
+              label="Vaccination Budget"
+              value={intervention.budget * 100}
+              min={2}
+              max={40}
+              step={2}
+              unit="%"
+              format={v => `${v.toFixed(0)}`}
+              onChange={v => onInterventionChange({ budget: v / 100 })}
+            />
+          </div>
         )}
+      </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2 pt-2">
-          <Button
-            onClick={onRun}
-            disabled={isRunning}
-            className="flex-1"
-            size="lg"
-          >
-            {isRunning ? (
-              <>
-                <span className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                Running...
-              </>
-            ) : (
-              <>
-                <FlaskConical className="w-4 h-4" />
-                Run Simulation
-              </>
-            )}
-          </Button>
-          {hasResult && (
-            <Button variant="outline" onClick={onReset} size="lg">
-              <RotateCcw className="w-4 h-4" />
-            </Button>
+      {/* Run Button */}
+      <div className="flex gap-2">
+        <Button
+          onClick={onRun}
+          disabled={isRunning}
+          className="flex-1 text-sm"
+          size="lg"
+        >
+          {isRunning ? (
+            <>
+              <span className="w-4 h-4 border-2 border-[#0a0a0f] border-t-transparent rounded-full animate-spin" />
+              Running...
+            </>
+          ) : (
+            <>
+              <Play className="w-4 h-4 fill-current" />
+              Run Simulation
+            </>
           )}
-        </div>
-      </CardContent>
-    </Card>
+        </Button>
+        {hasResult && (
+          <Button variant="outline" onClick={onReset} size="lg">
+            <RotateCcw className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
+      <p className="text-[10px] text-slate-600 text-center">Start New Simulation</p>
+    </aside>
   );
 }
