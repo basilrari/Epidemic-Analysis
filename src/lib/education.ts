@@ -7,12 +7,6 @@ export const INTRO_TEXT =
   'This interactive demonstration explores three connected PBL questions about epidemic spreading on graph networks. ' +
   'We model transmission using an SIR simulation on synthetic networks, then test how topology and vaccination strategy change outbreak size and speed.';
 
-export const PROBLEM_CHIPS = [
-  { id: 'p1', label: 'P1 · Applications', tooltip: PROBLEM_1_TOOLTIP },
-  { id: 'p2', label: 'P2 · Topology', tooltip: PROBLEM_2_TOOLTIP },
-  { id: 'p3', label: 'P3 · Intervention', tooltip: PROBLEM_3_TOOLTIP },
-] as const;
-
 export const PROBLEM_1_TOOLTIP =
   'Real-world spreading can be modeled as graph networks: nodes are entities (people, computers, cities) and edges are connections through which disease, rumors, malware, or trends spread.';
 
@@ -21,6 +15,12 @@ export const PROBLEM_2_TOOLTIP =
 
 export const PROBLEM_3_TOOLTIP =
   'Targeted vaccination of high-degree hub nodes reduces spread more effectively than random vaccination by blocking many transmission paths at once.';
+
+export const PROBLEM_CHIPS = [
+  { id: 'p1', label: 'P1 · Applications', tooltip: PROBLEM_1_TOOLTIP },
+  { id: 'p2', label: 'P2 · Topology', tooltip: PROBLEM_2_TOOLTIP },
+  { id: 'p3', label: 'P3 · Intervention', tooltip: PROBLEM_3_TOOLTIP },
+] as const;
 
 export const GRAPH_TYPE_TOOLTIPS: Record<NetworkType, string> = {
   'erdos-renyi': 'Random network: connections are evenly distributed. Spread is usually moderate.',

@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useSimStore } from '@/store/simulation-store';
-import { SkipBack, Play, Pause, SkipForward, Repeat } from 'lucide-react';
+import { Play, Pause, Repeat } from 'lucide-react';
 
 interface PlaybackControlsProps {
   maxStep: number;
@@ -15,85 +15,102 @@ export function PlaybackControls({ maxStep, className }: PlaybackControlsProps) 
     currentStep,
     isAnimating,
     animationSpeed,
+    loopAnimation,
     setStep,
     setIsAnimating,
     setAnimationSpeed,
+    setLoopAnimation,
     tickAnimation,
   } = useSimStore();
 
+  const rafRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
+  const accumulatorRef = useRef<number>(0);
+
   useEffect(() => {
-    if (!isAnimating) return;
-    const interval = setInterval(() => {
-      tickAnimation();
-    }, Math.max(50, 400 / animationSpeed));
-    return () => clearInterval(interval);
-  }, [isAnimating, animationSpeed, tickAnimation]);
+    if (!isAnimating || maxStep <= 0) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      return;
+    }
+
+    const msPerStep = 400 / animationSpeed;
+
+    const frame = (time: number) => {
+      if (!lastTimeRef.current) lastTimeRef.current = time;
+      const delta = time - lastTimeRef.current;
+      lastTimeRef.current = time;
+      accumulatorRef.current += delta;
+
+      while (accumulatorRef.current >= msPerStep) {
+        tickAnimation();
+        accumulatorRef.current -= msPerStep;
+      }
+
+      rafRef.current = requestAnimationFrame(frame);
+    };
+
+    lastTimeRef.current = 0;
+    accumulatorRef.current = 0;
+    rafRef.current = requestAnimationFrame(frame);
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [isAnimating, animationSpeed, maxStep, tickAnimation]);
 
   const progress = maxStep > 0 ? (currentStep / maxStep) * 100 : 0;
 
   return (
-    <div className={cn('flex flex-col gap-2 px-4 py-3 border-t border-[#2a2a3a] bg-[#0a0a0f]/80', className)}>
+    <div className={cn('flex flex-col gap-2 px-4 py-3 border-t border-[#1e293b] bg-[#0b0f1a]/80', className)}>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setStep(0)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-[#00ff88] hover:bg-[#1a1a24] transition-colors"
-            title="Go to start"
-          >
-            <SkipBack className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setStep(currentStep - 1)}
-            disabled={currentStep <= 0}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-[#00ff88] hover:bg-[#1a1a24] transition-colors disabled:opacity-30"
-            title="Previous step"
-          >
-            <SkipBack className="w-3.5 h-3.5" />
-          </button>
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setIsAnimating(!isAnimating)}
-            className="p-2 rounded-lg bg-[#00ff88]/15 text-[#00ff88] hover:bg-[#00ff88]/25 transition-colors neon-glow"
+            className="p-2 rounded-xl bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors"
             title={isAnimating ? 'Pause' : 'Play'}
           >
             {isAnimating ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
           </button>
           <button
-            onClick={() => setStep(currentStep + 1)}
-            disabled={currentStep >= maxStep}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-[#00ff88] hover:bg-[#1a1a24] transition-colors disabled:opacity-30"
-            title="Next step"
-          >
-            <SkipForward className="w-3.5 h-3.5" />
-          </button>
-          <button
             onClick={() => { setStep(0); setIsAnimating(true); }}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-[#00ff88] hover:bg-[#1a1a24] transition-colors"
-            title="Loop from start"
+            className="p-2 rounded-xl text-slate-400 hover:text-emerald-400 hover:bg-[#111827] transition-colors"
+            title="Restart"
           >
             <Repeat className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex items-center gap-2 flex-1 max-w-[200px]">
-          <span className="text-[10px] text-slate-500 whitespace-nowrap">Speed</span>
+        <div className="flex items-center gap-2 flex-1 max-w-[180px]">
+          <span className="text-[10px] text-slate-500">Speed</span>
           <input
             type="range"
-            min={0.5}
-            max={5}
+            min={1}
+            max={4}
             step={0.5}
             value={animationSpeed}
             onChange={e => setAnimationSpeed(parseFloat(e.target.value))}
-            className="flex-1 h-1 rounded-full appearance-none cursor-pointer bg-[#2a2a3a]"
+            className="flex-1"
           />
-          <span className="text-[10px] font-mono text-[#00ff88] w-8">{animationSpeed.toFixed(1)}x</span>
+          <span className="text-[10px] font-mono text-emerald-400 w-8">{animationSpeed.toFixed(1)}×</span>
         </div>
+
+        <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={loopAnimation}
+            onChange={e => setLoopAnimation(e.target.checked)}
+            className="rounded accent-emerald-500"
+          />
+          Loop
+        </label>
 
         <span className="text-[10px] font-mono text-slate-500">
           Step {currentStep} / {maxStep}
         </span>
       </div>
 
-      <div className="relative h-1.5 rounded-full bg-[#1a1a24] cursor-pointer"
+      <div
+        className="relative h-1.5 rounded-full bg-[#1e293b] cursor-pointer"
         onClick={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const pct = (e.clientX - rect.left) / rect.width;
@@ -101,8 +118,8 @@ export function PlaybackControls({ maxStep, className }: PlaybackControlsProps) 
         }}
       >
         <div
-          className="absolute h-full rounded-full bg-[#00ff88] transition-all"
-          style={{ width: `${progress}%`, boxShadow: '0 0 8px rgba(0,255,136,0.5)' }}
+          className="absolute h-full rounded-full bg-emerald-500 transition-[width] duration-75"
+          style={{ width: `${progress}%` }}
         />
         <input
           type="range"

@@ -2,15 +2,16 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import * as d3Force from 'd3-force';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { SimulationResult } from '@/simulation/types';
 import { cn } from '@/lib/utils';
 import { PlaybackControls } from './playback-controls';
 import {
   getVisualNodeState,
-  countCompartmentsAtStep,
+  countPblCompartmentsAtStep,
   getNodeFillColor,
   getNodeGlowColor,
-  LEGEND_ITEMS,
+  PBL_LEGEND_ITEMS,
   type VisualNodeState,
 } from '@/lib/node-colors';
 
@@ -44,27 +45,34 @@ function drawNode(
   radius: number,
   visual: VisualNodeState
 ) {
-  const fill = getNodeFillColor(visual);
-  const glow = getNodeGlowColor(visual);
-  const glowRadius = radius + (visual === 'infected' ? 6 : visual === 'exposed' ? 5 : 4);
+  const fill = getNodeFillColor(visual === 'exposed' ? 'infected' : visual);
+  const glow = getNodeGlowColor(visual === 'exposed' ? 'exposed' : visual);
+  const glowRadius = radius + (visual === 'infected' || visual === 'exposed' ? 6 : 4);
 
-  // Outer bloom
   ctx.beginPath();
   ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
   ctx.fillStyle = glow;
   ctx.fill();
 
-  // Core node
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
 
-  // Bright center highlight (mockup soft-dot look)
-  ctx.beginPath();
-  ctx.arc(x - radius * 0.2, y - radius * 0.2, radius * 0.35, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-  ctx.fill();
+  if (visual === 'vaccinated') {
+    ctx.beginPath();
+    ctx.arc(x, y, radius + 1.5, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+
+  if (visual === 'infected' || visual === 'exposed') {
+    ctx.beginPath();
+    ctx.arc(x - radius * 0.2, y - radius * 0.2, radius * 0.3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fill();
+  }
 }
 
 export function NetworkCanvas({
@@ -105,8 +113,8 @@ export function NetworkCanvas({
     ctx.clearRect(0, 0, w, h);
 
     const gradient = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7);
-    gradient.addColorStop(0, '#14141e');
-    gradient.addColorStop(1, '#0a0a0f');
+    gradient.addColorStop(0, '#111827');
+    gradient.addColorStop(1, '#0b0f1a');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, w, h);
 
@@ -114,14 +122,14 @@ export function NetworkCanvas({
     const edges = edgesRef.current;
 
     if (nodes.length === 0) {
-      ctx.fillStyle = '#475569';
+      ctx.fillStyle = '#64748b';
       ctx.font = `${compact ? 11 : 13}px "Roboto Mono", monospace`;
       ctx.textAlign = 'center';
-      ctx.fillText(compact ? 'Run simulation' : 'Configure parameters and run simulation', w / 2, h / 2);
+      ctx.fillText(compact ? 'Run simulation' : 'Run a simulation to watch the epidemic spread', w / 2, h / 2);
       return;
     }
 
-    ctx.strokeStyle = 'rgba(100, 116, 139, 0.18)';
+    ctx.strokeStyle = 'rgba(100, 116, 139, 0.15)';
     ctx.lineWidth = 0.5;
     for (const e of edges) {
       const s = nodes[e.source];
@@ -136,9 +144,7 @@ export function NetworkCanvas({
 
     const step = stepRef.current;
     for (const node of nodes) {
-      const visual = result
-        ? getVisualNodeState(node.id, result, step)
-        : 'susceptible';
+      const visual = result ? getVisualNodeState(node.id, result, step) : 'susceptible';
       const radius = compact
         ? Math.min(2.5 + node.degree * 0.3, 4)
         : Math.min(3.5 + node.degree * 0.4, 6.5);
@@ -154,7 +160,12 @@ export function NetworkCanvas({
   }, [result, label, compact]);
 
   useEffect(() => {
-    if (!result) return;
+    if (!result) {
+      nodesRef.current = [];
+      edgesRef.current = [];
+      render();
+      return;
+    }
 
     const container = containerRef.current;
     if (!container) return;
@@ -219,82 +230,59 @@ export function NetworkCanvas({
   }, [render]);
 
   const maxStep = result ? result.infectedCurve.length - 1 : 0;
-  const counts = result ? countCompartmentsAtStep(result, currentStep) : null;
+  const counts = result ? countPblCompartmentsAtStep(result, currentStep) : null;
 
   return (
-    <div className={cn('glass-panel rounded-xl overflow-hidden flex flex-col', className)}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a3a]">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-200">Network Topology & Spread</h3>
-          {result && (
-            <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-              Step {currentStep} / {maxStep} • Day {currentStep}
-            </p>
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={result ? 'has-result' : 'empty'}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className={cn('glass-panel rounded-2xl overflow-hidden flex flex-col', className)}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e293b]">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-200">Network Spread</h3>
+            {result && (
+              <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                Step {currentStep} / {maxStep}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="relative flex flex-1 min-h-0">
+          <div
+            ref={containerRef}
+            className={cn('flex-1 relative', compact ? 'min-h-[200px]' : 'min-h-[420px]')}
+          >
+            <canvas ref={canvasRef} className="w-full h-full absolute inset-0" />
+          </div>
+
+          {result && counts && !compact && (
+            <div className="w-36 border-l border-[#1e293b] p-3 flex flex-col gap-3 bg-[#0b0f1a]/70">
+              <div className="space-y-2">
+                {PBL_LEGEND_ITEMS.map(item => (
+                  <div key={item.key} className="flex items-center justify-between text-[10px]">
+                    <span className="flex items-center gap-1.5 text-slate-400">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      {item.label}
+                    </span>
+                    <span className="font-mono text-slate-300">{counts[item.key]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
-      </div>
 
-      <div className="relative flex flex-1 min-h-0">
-        <div
-          ref={containerRef}
-          className={cn('flex-1 relative', compact ? 'min-h-[200px]' : 'min-h-[380px]')}
-        >
-          <canvas ref={canvasRef} className="w-full h-full absolute inset-0" />
-        </div>
-
-        {result && counts && !compact && (
-          <div className="w-40 border-l border-[#2a2a3a] p-3 flex flex-col gap-3 bg-[#0a0a0f]/60">
-            <div className="space-y-2">
-              {LEGEND_ITEMS.map(item => (
-                <div key={item.key} className="flex items-center justify-between text-[10px]">
-                  <span className="flex items-center gap-1.5 text-slate-400">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: item.color, boxShadow: `0 0 6px ${item.color}80` }}
-                    />
-                    {item.label}
-                  </span>
-                  <span className="font-mono text-slate-300">{counts[item.key]}</span>
-                </div>
-              ))}
-            </div>
-            <div className="border-t border-[#2a2a3a] pt-2 space-y-1.5">
-              <div className="flex justify-between text-[10px]">
-                <span className="text-slate-500">Edges</span>
-                <span className="font-mono text-slate-400">{result.networkStats.edges}</span>
-              </div>
-              <div className="flex justify-between text-[10px]">
-                <span className="text-slate-500">Avg. Degree</span>
-                <span className="font-mono text-slate-400">{result.networkStats.avgDegree.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-[10px]">
-                <span className="text-slate-500">Clustering</span>
-                <span className="font-mono text-slate-400">{result.networkStats.clustering.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
+        {showPlayback && result && (
+          <PlaybackControls maxStep={maxStep} />
         )}
-      </div>
-
-      {showPlayback && result && (
-        <PlaybackControls maxStep={maxStep} />
-      )}
-    </div>
-  );
-}
-
-export function Legend() {
-  return (
-    <div className="flex flex-wrap gap-3 text-[10px] text-slate-400">
-      {LEGEND_ITEMS.map(item => (
-        <span key={item.key} className="flex items-center gap-1">
-          <span
-            className="w-2.5 h-2.5 rounded-full"
-            style={{ backgroundColor: item.color, boxShadow: `0 0 4px ${item.color}80` }}
-          />
-          {item.label}
-        </span>
-      ))}
-    </div>
+      </motion.div>
+    </AnimatePresence>
   );
 }

@@ -21,13 +21,14 @@ export const NODE_GLOW = {
   vaccinated: 'rgba(156, 163, 175, 0.25)',
 } as const;
 
-export const LEGEND_ITEMS = [
+export const PBL_LEGEND_ITEMS = [
   { key: 'susceptible' as const, label: 'Susceptible', color: NODE_COLORS.susceptible },
-  { key: 'exposed' as const, label: 'Exposed', color: NODE_COLORS.exposed },
   { key: 'infected' as const, label: 'Infected', color: NODE_COLORS.infected },
   { key: 'recovered' as const, label: 'Recovered', color: NODE_COLORS.recovered },
   { key: 'vaccinated' as const, label: 'Vaccinated', color: NODE_COLORS.vaccinated },
 ];
+
+export const LEGEND_ITEMS = PBL_LEGEND_ITEMS;
 
 export type VisualNodeState = keyof typeof NODE_COLORS;
 
@@ -82,6 +83,17 @@ export function countCompartmentsAtStep(result: SimulationResult, step: number) 
   }
 
   return counts;
+}
+
+/** PBL legend counts: merges exposed into infected for display */
+export function countPblCompartmentsAtStep(result: SimulationResult, step: number) {
+  const full = countCompartmentsAtStep(result, step);
+  return {
+    susceptible: full.susceptible,
+    infected: full.infected + full.exposed,
+    recovered: full.recovered,
+    vaccinated: full.vaccinated,
+  };
 }
 
 export function getNodeFillColor(visual: VisualNodeState): string {
