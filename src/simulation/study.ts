@@ -51,6 +51,9 @@ function computeAverage(metrics: SimulationMetrics[]): SimulationMetrics {
     attackRate: sum('attackRate'),
     epidemicDuration: sum('epidemicDuration'),
     reductionPercent: sum('reductionPercent'),
+    r0: sum('r0'),
+    interventionCost: sum('interventionCost'),
+    interventionBudgetUsed: sum('interventionBudgetUsed'),
   };
 }
 

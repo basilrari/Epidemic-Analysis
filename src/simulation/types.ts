@@ -59,6 +59,16 @@ export interface SimulationResult {
   metrics: SimulationMetrics;
   /** Final node states for visualization */
   finalNodeStates: Map<number, NodeState>;
+  /** Per-step node states for playback animation */
+  stateHistory: Map<number, NodeState>[];
+  /** Network topology statistics */
+  networkStats: NetworkStats;
+}
+
+export interface NetworkStats {
+  edges: number;
+  avgDegree: number;
+  clustering: number;
 }
 
 export interface SimulationMetrics {
@@ -69,6 +79,9 @@ export interface SimulationMetrics {
   attackRate: number;
   epidemicDuration: number;
   reductionPercent: number; // vs no-intervention baseline
+  r0: number;
+  interventionCost: number;
+  interventionBudgetUsed: number; // fraction 0-1
 }
 
 // ---- Multi-Trial Study ----

@@ -2,7 +2,7 @@
  * SIR Simulation Engine
  * Discrete-time SIR model on a graph network.
  */
-import type { SimNetwork, SimNode, SimulationConfig, InterventionConfig, SimulationResult, SimulationMetrics } from './types';
+import type { SimNetwork, SimNode, SimulationConfig, InterventionConfig, SimulationResult, SimulationMetrics, NetworkStats } from './types';
 import { NodeState } from './types';
 
 export function runSimulation(
@@ -14,13 +14,11 @@ export function runSimulation(
   const { beta, gamma, initialInfected, maxSteps } = config;
   const rng = seedRandom(config.seed);
 
-  // Deep clone nodes
   const nodes: SimNode[] = network.nodes.map(n => ({ ...n, state: NodeState.Susceptible }));
+  const stateHistory: Map<number, NodeState>[] = [];
 
-  // Apply intervention
   applyIntervention(nodes, network, intervention, rng);
 
-  // Initial infection from susceptible pool
   const susceptible = nodes.filter(n => n.state === NodeState.Susceptible);
   const shuffled = [...susceptible].sort(() => rng() - 0.5);
   const toInfect = shuffled.slice(0, Math.min(initialInfected, shuffled.length));
@@ -34,23 +32,27 @@ export function runSimulation(
 
   const { adjacencyList } = network;
 
+  const recordState = () => {
+    const snapshot = new Map<number, NodeState>();
+    for (const n of nodes) snapshot.set(n.id, n.state);
+    stateHistory.push(snapshot);
+  };
+
+  recordState();
+
   for (let step = 0; step < maxSteps; step++) {
-    // Record state
     const counts = countStates(nodes);
     infectedCurve.push(counts.infected);
     susceptibleCurve.push(counts.susceptible);
     recoveredCurve.push(counts.recovered);
 
-    // Early exit if no infected remain
     if (counts.infected === 0) break;
 
-    // Process infections
     const newInfected: Set<number> = new Set();
     const newRecovered: Set<number> = new Set();
 
     for (const node of nodes) {
       if (node.state === NodeState.Infected) {
-        // Try to infect each susceptible neighbor
         const neighbors = adjacencyList.get(node.id) || [];
         for (const nid of neighbors) {
           const neighbor = nodes[nid];
@@ -58,14 +60,12 @@ export function runSimulation(
             newInfected.add(nid);
           }
         }
-        // Try to recover
         if (rng() < gamma) {
           newRecovered.add(node.id);
         }
       }
     }
 
-    // Apply state changes
     for (const id of newInfected) {
       if (nodes[id].state === NodeState.Susceptible) {
         nodes[id].state = NodeState.Infected;
@@ -76,10 +76,12 @@ export function runSimulation(
         nodes[id].state = NodeState.Recovered;
       }
     }
+
+    recordState();
   }
 
-  const metrics = computeMetrics(nodes, infectedCurve, config.seed, baselineMetrics);
-
+  const networkStats = computeNetworkStats(network);
+  const metrics = computeMetrics(nodes, infectedCurve, config, intervention, networkStats, baselineMetrics);
   const finalNodeStates = new Map(nodes.map(n => [n.id, n.state]));
 
   return {
@@ -91,28 +93,80 @@ export function runSimulation(
     recoveredCurve,
     metrics,
     finalNodeStates,
+    stateHistory,
+    networkStats,
   };
 }
 
 function countStates(nodes: SimNode[]) {
-  let susceptible = 0, infected = 0, recovered = 0;
+  let susceptible = 0, infected = 0, recovered = 0, vaccinated = 0;
   for (const n of nodes) {
     if (n.state === NodeState.Susceptible) susceptible++;
     else if (n.state === NodeState.Infected) infected++;
-    else if (n.state === NodeState.Recovered || n.state === NodeState.Vaccinated) recovered++;
+    else if (n.state === NodeState.Recovered) recovered++;
+    else if (n.state === NodeState.Vaccinated) vaccinated++;
   }
-  return { susceptible, infected, recovered };
+  return { susceptible, infected, recovered, vaccinated };
+}
+
+export function countStatesAtStep(
+  stateHistory: Map<number, NodeState>[],
+  step: number
+) {
+  const snapshot = stateHistory[Math.min(step, stateHistory.length - 1)];
+  if (!snapshot) return { susceptible: 0, infected: 0, recovered: 0, vaccinated: 0 };
+  let susceptible = 0, infected = 0, recovered = 0, vaccinated = 0;
+  for (const state of snapshot.values()) {
+    if (state === NodeState.Susceptible) susceptible++;
+    else if (state === NodeState.Infected) infected++;
+    else if (state === NodeState.Recovered) recovered++;
+    else if (state === NodeState.Vaccinated) vaccinated++;
+  }
+  return { susceptible, infected, recovered, vaccinated };
+}
+
+function computeNetworkStats(network: SimNetwork): NetworkStats {
+  const n = network.nodes.length;
+  const edges = network.edges.length;
+  const avgDegree = n > 0 ? (2 * edges) / n : 0;
+
+  let clusteringSum = 0;
+  let nodesWithNeighbors = 0;
+  for (let i = 0; i < n; i++) {
+    const neighbors = network.adjacencyList.get(i) || [];
+    const k = neighbors.length;
+    if (k < 2) continue;
+    nodesWithNeighbors++;
+    let triangles = 0;
+    for (let a = 0; a < neighbors.length; a++) {
+      for (let b = a + 1; b < neighbors.length; b++) {
+        const na = neighbors[a];
+        const nb = neighbors[b];
+        const nbNeighbors = network.adjacencyList.get(nb) || [];
+        if (nbNeighbors.includes(na)) triangles++;
+      }
+    }
+    const possible = (k * (k - 1)) / 2;
+    clusteringSum += possible > 0 ? triangles / possible : 0;
+  }
+
+  const clustering = nodesWithNeighbors > 0 ? clusteringSum / nodesWithNeighbors : 0;
+  return { edges, avgDegree, clustering };
 }
 
 function computeMetrics(
   nodes: SimNode[],
   infectedCurve: number[],
-  seed: number,
+  config: SimulationConfig,
+  intervention: InterventionConfig,
+  networkStats: NetworkStats,
   baselineMetrics?: SimulationMetrics | null
 ): SimulationMetrics {
   const peakInfected = Math.max(...infectedCurve, 0);
   const timeToPeak = infectedCurve.indexOf(peakInfected);
-  const finalInfected = nodes.filter(n => n.state === NodeState.Infected || n.state === NodeState.Recovered || n.state === NodeState.Vaccinated).length;
+  const finalInfected = nodes.filter(n =>
+    n.state === NodeState.Infected || n.state === NodeState.Recovered || n.state === NodeState.Vaccinated
+  ).length;
   const finalSusceptible = nodes.filter(n => n.state === NodeState.Susceptible).length;
   const total = nodes.length;
   const attackRate = total > 0 ? finalInfected / total : 0;
@@ -120,6 +174,14 @@ function computeMetrics(
 
   const reductionPercent = baselineMetrics && baselineMetrics.finalInfected > 0
     ? ((baselineMetrics.finalInfected - finalInfected) / baselineMetrics.finalInfected) * 100
+    : 0;
+
+  const vaccinatedCount = nodes.filter(n => n.state === NodeState.Vaccinated).length;
+  const interventionCost = vaccinatedCount;
+  const interventionBudgetUsed = intervention.strategy !== 'none' ? intervention.budget : 0;
+
+  const r0 = config.gamma > 0
+    ? (config.beta * networkStats.avgDegree) / config.gamma
     : 0;
 
   return {
@@ -130,6 +192,9 @@ function computeMetrics(
     attackRate,
     epidemicDuration,
     reductionPercent,
+    r0,
+    interventionCost,
+    interventionBudgetUsed,
   };
 }
 
