@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { cn } from '@/lib/utils';
+import { CHART_COLORS } from '@/lib/node-colors';
 
 interface CurveSeries {
   label: string;
@@ -81,7 +82,7 @@ export function InfectionCurveComparison({
                 key={r.label}
                 type="monotone"
                 dataKey={r.label}
-                stroke={r.color || (i === 0 ? '#ef4444' : '#00ff88')}
+                stroke={r.color || (i === 0 ? CHART_COLORS.baseline : CHART_COLORS.intervention)}
                 strokeWidth={2}
                 strokeDasharray={r.dashed ? '6 4' : undefined}
                 dot={false}
@@ -130,7 +131,7 @@ export function LogScaleComparison({ results, className }: InfectionCurveProps) 
                 key={r.label}
                 type="monotone"
                 dataKey={r.label}
-                stroke={r.color || (i === 0 ? '#ef4444' : '#00ff88')}
+                stroke={r.color || (i === 0 ? CHART_COLORS.baseline : CHART_COLORS.intervention)}
                 strokeWidth={2}
                 strokeDasharray={r.dashed ? '6 4' : undefined}
                 dot={false}
@@ -178,9 +179,9 @@ export function SIRCurve({ result, className }: {
             <Tooltip contentStyle={CHART_STYLE.tooltip} labelStyle={{ color: '#94a3b8' }} />
             <Legend wrapperStyle={{ fontSize: '10px', color: '#94a3b8' }} />
             <ReferenceLine x={peakDay} stroke="#64748b" strokeDasharray="4 4" label={{ value: 'Peak Day', fill: '#64748b', fontSize: 9, position: 'top' }} />
-            <Area type="monotone" dataKey="Susceptible" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} isAnimationActive={false} />
-            <Area type="monotone" dataKey="Infected" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.7} isAnimationActive={false} />
-            <Area type="monotone" dataKey="Recovered" stackId="1" stroke="#00ff88" fill="#00ff88" fillOpacity={0.6} isAnimationActive={false} />
+            <Area type="monotone" dataKey="Susceptible" stackId="1" stroke={CHART_COLORS.susceptible} fill={CHART_COLORS.susceptible} fillOpacity={0.65} isAnimationActive={false} />
+            <Area type="monotone" dataKey="Infected" stackId="1" stroke={CHART_COLORS.infected} fill={CHART_COLORS.infected} fillOpacity={0.75} isAnimationActive={false} />
+            <Area type="monotone" dataKey="Recovered" stackId="1" stroke={CHART_COLORS.recovered} fill={CHART_COLORS.recovered} fillOpacity={0.65} isAnimationActive={false} />
           </AreaChart>
         </ResponsiveContainer>
       </div>

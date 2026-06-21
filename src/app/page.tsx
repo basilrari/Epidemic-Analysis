@@ -9,6 +9,7 @@ import { AppHeader } from '@/components/app-header';
 import { AppFooter } from '@/components/app-footer';
 import { Button } from '@/components/ui/button';
 import { formatStrategyLabel } from '@/lib/presets';
+import { CHART_COLORS } from '@/lib/node-colors';
 import { cn } from '@/lib/utils';
 import type { InterventionStrategy } from '@/simulation/types';
 
@@ -38,13 +39,13 @@ function SandboxView() {
     ...(baselineResult ? [{
       label: 'Baseline (No Intervention)',
       infectedCurve: baselineResult.infectedCurve,
-      color: '#ef4444',
+      color: CHART_COLORS.baseline,
       dashed: true,
     }] : []),
     ...(simResult && intervention.strategy !== 'none' ? [{
       label: 'With Intervention',
       infectedCurve: simResult.infectedCurve,
-      color: '#00ff88',
+      color: CHART_COLORS.intervention,
       dashed: false,
     }] : []),
   ];
@@ -94,7 +95,7 @@ function CompareView() {
     runCompare, addCompareConfig, removeCompareConfig, updateCompareConfig,
   } = useSimStore();
 
-  const COLORS = ['#ef4444', '#00ff88', '#3b82f6', '#fbbf24', '#a78bfa', '#f97316'];
+  const COLORS = [CHART_COLORS.baseline, CHART_COLORS.intervention, CHART_COLORS.susceptible, '#f59e0b', '#a78bfa', '#9ca3af'];
 
   return (
     <div className="space-y-5">
