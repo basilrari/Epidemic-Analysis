@@ -4,7 +4,7 @@ export function Card({ className, children, ...props }: React.HTMLAttributes<HTM
   return (
     <div
       className={cn(
-        'rounded-xl border border-slate-700/50 bg-slate-900/80 backdrop-blur-sm p-4',
+        'rounded-xl glass-panel p-4',
         className
       )}
       {...props}
@@ -19,7 +19,11 @@ export function CardHeader({ className, children }: { className?: string; childr
 }
 
 export function CardTitle({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <h3 className={cn('text-sm font-semibold text-slate-200 tracking-wide uppercase', className)}>{children}</h3>;
+  return (
+    <h3 className={cn('text-xs font-semibold text-slate-300 tracking-wider uppercase', className)}>
+      {children}
+    </h3>
+  );
 }
 
 export function CardContent({ className, children }: { className?: string; children: React.ReactNode }) {
